@@ -1,0 +1,14 @@
+spring:
+  application:
+  name: cvision
+
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/cvision
+
+# OpenNLP Model file paths
+opennlp:
+  tokenizer:
+    model: classpath:static/opennlp/en-token.bin
+  lemmatizer:
+    model: classpath:static/opennlp/en-lemmatizer.bin
