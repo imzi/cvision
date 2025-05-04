@@ -9,9 +9,10 @@ import opennlp.tools.tokenize.TokenizerModel;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 public class ResumeServiceImpl implements ResumeService{
@@ -24,6 +25,19 @@ public class ResumeServiceImpl implements ResumeService{
             "a", "an", "the", "and", "or", "but", "with", "without",
             "for", "in", "on", "at", "by", "to", "from", "of", "is", "are"
     );
+
+    private static final Set<String> SKILL_SET = Set.of("java", "spring", "python", "aws", "docker", "kubernetes", "react", "node", "sql", "git");
+    private static final Set<String> DEGREE_KEYWORDS = Set.of("bachelor", "master", "phd", "bsc", "msc", "mba", "mca");
+    private static final Set<String> CERTIFICATIONS = Set.of("aws certified", "ocjp", "azure certified", "google cloud certified", "pmp", "scrum master");
+    private static final Pattern EXPERIENCE_PATTERN = Pattern.compile("(\\d+)\\s*(\\+)?\\s*(year|yr|years|yrs)");
+    private static final Pattern LINKEDIN_PATTERN = Pattern.compile("https?://(www\\.)?linkedin\\.com/in/[a-zA-Z0-9\\-_/]+");
+    private static final Pattern GITHUB_PATTERN = Pattern.compile("https?://(www\\.)?github\\.com/[a-zA-Z0-9\\-_/]+");
+    private static final Pattern UNIVERSITY_PATTERN = Pattern.compile(
+            "(?i)([A-Z][a-z]+(?:\\s+of)?\\s+(university|institute|college)[\\w\\s]*)"
+    );
+    private static final Pattern PROJECT_TITLE_PATTERN = Pattern.compile("(?m)^[-•\\*]\\s*([A-Z][\\w\\s]{3,50})");
+
+
 
     @PostConstruct
     public void init() throws Exception {
@@ -72,4 +86,61 @@ public class ResumeServiceImpl implements ResumeService{
 
         return finalWords;
     }
+
+    public Map<String, Object> extractEntities(String originalText, List<String> lemmatizedWords) {
+        Map<String, Object> result = new HashMap<>();
+
+        // Skills
+        List<String> skills = lemmatizedWords.stream()
+                .filter(SKILL_SET::contains)
+                .distinct()
+                .collect(Collectors.toList());
+
+        // Education
+        Optional<String> education = lemmatizedWords.stream()
+                .filter(DEGREE_KEYWORDS::contains)
+                .findFirst();
+
+        // Certifications
+        List<String> certs = CERTIFICATIONS.stream()
+                .filter(cert -> originalText.toLowerCase().contains(cert))
+                .toList();
+
+        // Experience (years)
+        Matcher matcher = EXPERIENCE_PATTERN.matcher(originalText.toLowerCase());
+        Integer years = null;
+        if (matcher.find()) {
+            years = Integer.parseInt(matcher.group(1));
+        }
+
+        // Links (LinkedIn, GitHub, University)
+        Map<String, String> linksAndOrgs = new HashMap<>();
+
+        Matcher linkedin = LINKEDIN_PATTERN.matcher(originalText);
+        if (linkedin.find()) linksAndOrgs.put("linkedin", linkedin.group()); // TODO: need to work on these
+
+        Matcher github = GITHUB_PATTERN.matcher(originalText);
+        if (github.find()) linksAndOrgs.put("github", github.group());
+
+        Matcher university = UNIVERSITY_PATTERN.matcher(originalText);
+        if (university.find()) linksAndOrgs.put("university", university.group().trim());
+
+        // Project Names
+        List<String> projectNames = new ArrayList<>();
+        Matcher projectMatcher = PROJECT_TITLE_PATTERN.matcher(originalText);
+        while (projectMatcher.find()) {
+            projectNames.add(projectMatcher.group(1).trim());
+        }
+
+        // Add the results to the map
+        result.put("skills", skills);
+        result.put("education", education.orElse(null));
+        result.put("certifications", certs);
+        result.put("experienceYears", years);
+        result.put("linksAndOrgs", linksAndOrgs);
+        result.put("projectNames", projectNames);
+
+        return result;
+    }
+
 }

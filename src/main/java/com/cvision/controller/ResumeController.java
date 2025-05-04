@@ -61,12 +61,17 @@ public class ResumeController {
             String parsedText = tika.parseToString(file.getInputStream());
             List<String> cleanedTokens = resumeService.preprocess(parsedText);
             String cleanedText = String.join(" ", cleanedTokens);
+            Map<String, Object> extracted = resumeService.extractEntities(parsedText, cleanedTokens);
             // Save metadata + text into MongoDB
             ResumeDocument doc = new ResumeDocument();
             doc.setOriginalFileName(file.getOriginalFilename());
             doc.setFilePath(resumePath.toAbsolutePath().toString());
             doc.setContentType(file.getContentType());
             doc.setParsedText(cleanedText);
+            doc.setSkills((List<String>) extracted.get("skills"));
+            doc.setEducation((String) extracted.get("education"));
+            doc.setExperienceYears(String.valueOf((Integer) extracted.get("experienceYears")));
+            doc.setCertifications((List<String>) extracted.get("certifications"));
             doc.setUploadedAt(LocalDateTime.now());
 
             ResumeDocument savedDoc = resumeRepository.save(doc);
