@@ -14,6 +14,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.apache.commons.lang3.StringUtils.capitalize;
+
 @Service
 public class ResumeServiceImpl implements ResumeService{
 
@@ -27,17 +29,47 @@ public class ResumeServiceImpl implements ResumeService{
     );
 
     private static final Set<String> SKILL_SET = Set.of("java", "spring", "python", "aws", "docker", "kubernetes", "react", "node", "sql", "git");
-    private static final Set<String> DEGREE_KEYWORDS = Set.of("bachelor", "master", "phd", "bsc", "msc", "mba", "mca");
+    private static final List<String> DEGREE_KEYWORDS = List.of(
+            "bachelor", "b.sc", "bsc", "BSc", "Bsc",   "btech", "b.e", "b.eng",
+            "master", "m.sc", "msc", "mtech", "m.e", "m.eng",
+            "phd", "doctorate", "mba", "mca", "ba", "ma"
+    );
+
+    private static final List<String> FIELDS_OF_STUDY = List.of(
+            "computer science", "information technology", "software engineering",
+            "data science", "artificial intelligence", "machine learning",
+            "electrical engineering", "mechanical engineering", "business administration",
+            "finance", "marketing", "human resources"
+    );
     private static final Set<String> CERTIFICATIONS = Set.of("aws certified", "ocjp", "azure certified", "google cloud certified", "pmp", "scrum master");
-    private static final Pattern EXPERIENCE_PATTERN = Pattern.compile("(\\d+)\\s*(\\+)?\\s*(year|yr|years|yrs)");
+    // Regex: digit-based
+    private static final Pattern EXPERIENCE_PATTERN = Pattern.compile(
+            "(\\d{1,2})\\s*(\\+)?\\s*(years|yrs)?\\s*(of)?\\s*experience",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    // Regex: word-based (optional, for extra enhancement)
+    private static final Map<String, Integer> WORD_NUMBER_MAP = Map.ofEntries(
+            Map.entry("one", 1), Map.entry("two", 2), Map.entry("three", 3),
+            Map.entry("four", 4), Map.entry("five", 5), Map.entry("six", 6),
+            Map.entry("seven", 7), Map.entry("eight", 8), Map.entry("nine", 9),
+            Map.entry("ten", 10)
+    );
+
     private static final Pattern LINKEDIN_PATTERN = Pattern.compile("https?://(www\\.)?linkedin\\.com/in/[a-zA-Z0-9\\-_/]+");
     private static final Pattern GITHUB_PATTERN = Pattern.compile("https?://(www\\.)?github\\.com/[a-zA-Z0-9\\-_/]+");
     private static final Pattern UNIVERSITY_PATTERN = Pattern.compile(
-            "(?i)([A-Z][a-z]+(?:\\s+of)?\\s+(university|institute|college)[\\w\\s]*)"
+            "\\b(?:[A-Z][a-z]+\\s)*University(?:\\s(?:of\\s(?:[A-Z][a-z]+\\s?)+))?\\b"
     );
     private static final Pattern PROJECT_TITLE_PATTERN = Pattern.compile("(?m)^[-•\\*]\\s*([A-Z][\\w\\s]{3,50})");
 
+    // Email
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}");
 
+    // Phone number (Sri Lanka example and general)
+    private static final Pattern PHONE_PATTERN = Pattern.compile(
+            "(?:\\+94|0)?[\\s-]?(7[01245678])[\\s-]?[0-9]{3}[\\s-]?[0-9]{4}"
+    );
 
     @PostConstruct
     public void init() throws Exception {
@@ -97,9 +129,10 @@ public class ResumeServiceImpl implements ResumeService{
                 .collect(Collectors.toList());
 
         // Education
-        Optional<String> education = lemmatizedWords.stream()
-                .filter(DEGREE_KEYWORDS::contains)
-                .findFirst();
+        Pattern DEGREE_PATTERN = Pattern.compile(
+                "(bachelor|master|msc|bsc|mba|phd|diploma|associate)[\\w\\s,-]*?(computer science|information technology|software engineering|engineering|ict|ai|artificial intelligence|data science)?",
+                Pattern.CASE_INSENSITIVE
+        );
 
         // Certifications
         List<String> certs = CERTIFICATIONS.stream()
@@ -107,11 +140,7 @@ public class ResumeServiceImpl implements ResumeService{
                 .toList();
 
         // Experience (years)
-        Matcher matcher = EXPERIENCE_PATTERN.matcher(originalText.toLowerCase());
-        Integer years = null;
-        if (matcher.find()) {
-            years = Integer.parseInt(matcher.group(1));
-        }
+        String years = extractExperienceYears(originalText);
 
         // Links (LinkedIn, GitHub, University)
         Map<String, String> linksAndOrgs = new HashMap<>();
@@ -122,9 +151,11 @@ public class ResumeServiceImpl implements ResumeService{
         Matcher github = GITHUB_PATTERN.matcher(originalText);
         if (github.find()) linksAndOrgs.put("github", github.group());
 
+        String universityName = null;
         Matcher university = UNIVERSITY_PATTERN.matcher(originalText);
-        if (university.find()) linksAndOrgs.put("university", university.group().trim());
-
+        if (university.find()) {
+            universityName =  university.group().trim();
+        }
         // Project Names
         List<String> projectNames = new ArrayList<>();
         Matcher projectMatcher = PROJECT_TITLE_PATTERN.matcher(originalText);
@@ -132,15 +163,84 @@ public class ResumeServiceImpl implements ResumeService{
             projectNames.add(projectMatcher.group(1).trim());
         }
 
+
+        Map<String, String> contact = new HashMap<>();
+        contact.put("email", extractFirstMatch(EMAIL_PATTERN, originalText));
+        contact.put("phone", extractFirstMatch(PHONE_PATTERN, originalText));
+
+
+
         // Add the results to the map
         result.put("skills", skills);
-        result.put("education", education.orElse(null));
+        result.put("education", extractEducation(originalText));
         result.put("certifications", certs);
         result.put("experienceYears", years);
         result.put("linksAndOrgs", linksAndOrgs);
         result.put("projectNames", projectNames);
+        result.put("contact", contact);
 
         return result;
     }
+
+    private static String extractFirstMatch(Pattern pattern, String text) {
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group();
+        }
+        return null;
+    }
+
+    public String extractExperienceYears(String text) {
+        Matcher matcher = EXPERIENCE_PATTERN.matcher(text);
+        if (matcher.find()) {
+            return matcher.group(1); // returns the digit part
+        }
+
+        // Optional: Check for word-based years
+        for (Map.Entry<String, Integer> entry : WORD_NUMBER_MAP.entrySet()) {
+            if (text.toLowerCase().contains(entry.getKey() + " years")) {
+                return String.valueOf(entry.getValue());
+            }
+        }
+
+        return "null"; // default if nothing found
+    }
+    public Map<String, String> extractEducation(String text) {
+        String lower = text.toLowerCase();
+
+        String degree = null;
+        for (String keyword : DEGREE_KEYWORDS) {
+            if (lower.contains(keyword)) {
+                degree = keyword;
+                break;
+            }
+        }
+
+        String field = null;
+        for (String study : FIELDS_OF_STUDY) {
+            if (lower.contains(study)) {
+                field = study;
+                break;
+            }
+        }
+
+        String universityName = null;
+        Matcher university = UNIVERSITY_PATTERN.matcher(text);
+        if (university.find()) {
+            universityName =  university.group().trim();
+        }
+
+
+        Map<String, String> result = new HashMap<>();
+        result.put("degree", degree != null ? degree : "unknown");
+        result.put("field", field != null ? field : "unknown");
+        result.put("university", universityName != null ? universityName : "unknown");
+        return result;
+    }
+
+
+
+
+
 
 }

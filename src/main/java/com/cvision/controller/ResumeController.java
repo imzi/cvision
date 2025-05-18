@@ -70,8 +70,10 @@ public class ResumeController {
             doc.setOriginalText(parsedText);
             doc.setParsedText(cleanedText);
             doc.setSkills((List<String>) extracted.get("skills"));
-            doc.setEducation((String) extracted.get("education"));
-            doc.setExperienceYears(String.valueOf((Integer) extracted.get("experienceYears")));
+            doc.setEducation((Map<String, String>) extracted.get("education"));
+            doc.setContact((Map<String, String>) extracted.get("contact"));
+            doc.setUniversity((String) extracted.get("university"));
+            doc.setExperienceYears(String.valueOf(extracted.get("experienceYears")));
             doc.setCertifications((List<String>) extracted.get("certifications"));
             doc.setUploadedAt(LocalDateTime.now());
 

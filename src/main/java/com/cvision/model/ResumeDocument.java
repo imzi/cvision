@@ -7,6 +7,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Document(collection = "resumes")
 @Getter
@@ -19,7 +20,9 @@ public class ResumeDocument {
     private String contentType;
     private String originalText;
     private String parsedText;
-    private String education;
+    private Map<String, String> education;
+    private Map<String, String> contact;
+    private String university;
     private String experienceYears;
     private List<String> skills;
     private List<String> certifications;
