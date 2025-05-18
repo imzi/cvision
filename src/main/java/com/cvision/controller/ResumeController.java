@@ -67,6 +67,7 @@ public class ResumeController {
             doc.setOriginalFileName(file.getOriginalFilename());
             doc.setFilePath(resumePath.toAbsolutePath().toString());
             doc.setContentType(file.getContentType());
+            doc.setOriginalText(parsedText);
             doc.setParsedText(cleanedText);
             doc.setSkills((List<String>) extracted.get("skills"));
             doc.setEducation((String) extracted.get("education"));

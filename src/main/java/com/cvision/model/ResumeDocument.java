@@ -17,6 +17,7 @@ public class ResumeDocument {
     private String originalFileName;
     private String filePath;
     private String contentType;
+    private String originalText;
     private String parsedText;
     private String education;
     private String experienceYears;
